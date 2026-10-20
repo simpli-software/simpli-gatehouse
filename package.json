@@ -1,0 +1,11 @@
+{
+  "name": "simpli-gatehouse",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Static config builder for the Simpli Gatehouse GitHub Actions. No dependencies, no build step.",
+  "scripts": {
+    "test": "node --test",
+    "templates": "node scripts/build-templates.mjs"
+  }
+}
