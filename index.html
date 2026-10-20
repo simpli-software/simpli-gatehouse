@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Build the workflow and config files for Simpli Gatehouse: AI pull-request review and security scanning for GitHub. Runs in your browser; nothing is sent or stored.">
+<title>Simpli Gatehouse config builder</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the builder</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <h1>Simpli Gatehouse</h1>
+    <p class="tagline">Gate every pull request before it merges: AI code review and security scanning, as GitHub Actions you configure with files.</p>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <p class="lead">Choose the settings, then copy or download the files into your repository. Everything happens in this page: nothing you type is sent anywhere or stored.</p>
+
+  <div class="tabs" role="tablist" aria-label="Tool">
+    <button type="button" role="tab" id="tab-review" aria-controls="panel-review" aria-selected="true" tabindex="0">Review</button>
+    <button type="button" role="tab" id="tab-guard" aria-controls="panel-guard" aria-selected="false" tabindex="-1">Guard</button>
+  </div>
+
+  <!-- ===================== REVIEW ===================== -->
+  <section id="panel-review" class="panel" role="tabpanel" aria-labelledby="tab-review">
+    <p class="panel-intro"><strong>simpli-review</strong> reviews each pull request with the whole codebase in view, and can scan the full repository for security problems on a schedule. It needs one Anthropic API key that you bring yourself.</p>
+
+    <div class="layout">
+      <form id="form-review" class="form" novalidate autocomplete="off">
+
+        <details class="group" open>
+          <summary>Review basics</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="r-heading">Summary heading</label>
+              <input id="r-heading" name="heading" type="text" value="Code Review" maxlength="80" spellcheck="false" data-path="heading">
+              <p class="hint">The title on the summary comment. Goes in the workflow file.</p>
+              <p class="err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="r-strictness">Strictness</label>
+              <select id="r-strictness" name="strictness">
+                <option value="1">1 - everything worth saying</option>
+                <option value="2" selected>2 - default, drops P2 style comments</option>
+                <option value="3">3 - P0 only</option>
+              </select>
+            </div>
+            <fieldset class="field" data-path="commentTypes">
+              <legend>Comment types to keep</legend>
+              <div class="checks">
+                <label class="check"><input type="checkbox" name="commentTypes" value="logic" checked> logic</label>
+                <label class="check"><input type="checkbox" name="commentTypes" value="syntax" checked> syntax</label>
+                <label class="check"><input type="checkbox" name="commentTypes" value="style" checked> style</label>
+              </div>
+              <p class="err" hidden></p>
+            </fieldset>
+            <div class="pair">
+              <div class="field">
+                <label for="r-minconf">Minimum confidence (1-5)</label>
+                <input id="r-minconf" name="minConfidence" type="number" inputmode="numeric" min="1" max="5" step="1" value="3" data-path="minConfidence">
+                <p class="hint">Findings the model rates lower are dropped.</p>
+                <p class="err" hidden></p>
+              </div>
+              <div class="field">
+                <label for="r-maxcomments">Most inline comments</label>
+                <input id="r-maxcomments" name="maxComments" type="number" inputmode="numeric" min="0" step="1" value="15" data-path="maxComments">
+                <p class="hint">Extra findings go in the summary.</p>
+                <p class="err" hidden></p>
+              </div>
+            </div>
+            <div class="checks">
+              <label class="check"><input type="checkbox" name="includeDiagram" checked> Include a diagram in the summary</label>
+              <label class="check"><input type="checkbox" name="learnFromReactions" checked> Learn from 👍/👎 reactions on its comments</label>
+            </div>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>When it runs</summary>
+          <div class="group-body">
+            <fieldset class="field">
+              <legend>Review automatically on</legend>
+              <div class="checks">
+                <label class="check"><input type="checkbox" name="autoReview" value="open" checked> opened, reopened, ready for review</label>
+                <label class="check"><input type="checkbox" name="autoReview" value="push"> every new commit (adds <code>synchronize</code> to the workflow)</label>
+              </div>
+              <p class="hint">With neither, a review runs only when the re-review label is added.</p>
+            </fieldset>
+            <div class="field">
+              <label for="r-rereview">Re-review label</label>
+              <input id="r-rereview" name="reReviewLabel" type="text" value="re-review" maxlength="50" spellcheck="false" data-path="reReviewLabel">
+              <p class="hint">Adding this label to a PR asks for another review. Appears in the workflow and the config.</p>
+              <p class="err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="r-exclude">Skip PRs from these authors</label>
+              <textarea id="r-exclude" name="excludeAuthors" rows="2" spellcheck="false" placeholder="dependabot[bot]"></textarea>
+              <p class="hint">One login per line.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Block merges</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="r-blockon">Fail the check on findings at or above</label>
+              <select id="r-blockon" name="blockOn">
+                <option value="none" selected>none - never block</option>
+                <option value="P0">P0</option>
+                <option value="P1">P1</option>
+              </select>
+              <p class="hint">Make the <code>review</code> job a required status check in branch protection to stop the merge.</p>
+            </div>
+            <div class="field">
+              <label for="r-override">Override label</label>
+              <input id="r-override" name="overrideLabel" type="text" value="review-override" maxlength="50" spellcheck="false" data-path="overrideLabel">
+              <p class="hint">A PR with this label is let through.</p>
+              <p class="err" hidden></p>
+            </div>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Pre-merge checks</summary>
+          <div class="group-body">
+            <div class="pair">
+              <div class="field">
+                <label for="r-bc-pr">pr-template</label>
+                <select id="r-bc-pr" name="bc-pr-template"><option value="off">off</option><option value="warning" selected>warning</option><option value="error">error</option></select>
+              </div>
+              <div class="field">
+                <label for="r-bc-scope">declared-scope</label>
+                <select id="r-bc-scope" name="bc-declared-scope"><option value="off">off</option><option value="warning" selected>warning</option><option value="error">error</option></select>
+              </div>
+            </div>
+            <p class="hint">An <code>error</code> check that fails blocks the merge.</p>
+            <h3 class="sub">Your own checks</h3>
+            <p class="hint">Up to 20. The model evaluates each against the diff and the code.</p>
+            <ol class="rows" data-rows="checks"></ol>
+            <p class="err group-err" data-group-err="checks" hidden></p>
+            <button type="button" class="btn" data-add="checks">Add a check</button>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Rules and context</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="r-instructions">Instructions for the reviewer</label>
+              <textarea id="r-instructions" name="instructions" rows="3" placeholder="We are a FastAPI + React codebase. Prices are stored as integer cents."></textarea>
+              <p class="hint">Free text, added to every review.</p>
+            </div>
+            <h3 class="sub">Team rules</h3>
+            <p class="hint">Each rule is checked on the files its scope matches.</p>
+            <ol class="rows" data-rows="rules"></ol>
+            <button type="button" class="btn" data-add="rules">Add a rule</button>
+            <div class="field spaced">
+              <label for="r-ignore">Files to ignore</label>
+              <textarea id="r-ignore" name="ignorePatterns" rows="7" spellcheck="false" data-path="ignorePatterns"></textarea>
+              <p class="hint">One glob per line. This is the default list; changing it replaces the defaults.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Scheduled AI security scan</summary>
+          <div class="group-body">
+            <div class="checks">
+              <label class="check"><input type="checkbox" name="scanEnabled"> Add the AI scan workflow</label>
+            </div>
+            <p class="hint">Reads the whole repository on a schedule and opens a few issues for the worst findings. It uses your API key, so run it by hand once and read the spend report before keeping the schedule.</p>
+            <fieldset class="scan-fields" id="scan-fields" disabled>
+              <legend class="sr-only">Scan budget</legend>
+              <div class="pair">
+                <div class="field">
+                  <label for="r-sc-tokens">Token budget per run</label>
+                  <input id="r-sc-tokens" name="scan-maxInputTokens" type="number" inputmode="numeric" min="10000" step="10000" value="3000000" data-path="scan.maxInputTokens">
+                  <p class="hint">Input, output and cache tokens summed over the run.</p>
+                  <p class="err" hidden></p>
+                </div>
+                <div class="field">
+                  <label for="r-sc-turns">Most investigation turns</label>
+                  <input id="r-sc-turns" name="scan-maxTurns" type="number" inputmode="numeric" min="1" max="500" step="1" value="60" data-path="scan.maxTurns">
+                  <p class="err" hidden></p>
+                </div>
+              </div>
+              <div class="pair">
+                <div class="field">
+                  <label for="r-sc-effort">Effort</label>
+                  <select id="r-sc-effort" name="scan-effort">
+                    <option>low</option><option>medium</option><option selected>high</option><option>xhigh</option><option>max</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="r-sc-issues">Most issues per run</label>
+                  <input id="r-sc-issues" name="scan-maxIssues" type="number" inputmode="numeric" min="0" max="50" step="1" value="5" data-path="scan.maxIssues">
+                  <p class="err" hidden></p>
+                </div>
+              </div>
+              <div class="field">
+                <label for="r-sc-sev">Open issues for findings at or above</label>
+                <select id="r-sc-sev" name="scan-minSeverity"><option>P0</option><option selected>P1</option><option>P2</option></select>
+              </div>
+            </fieldset>
+          </div>
+        </details>
+      </form>
+
+      <div class="out">
+        <p class="pin-note" id="pin-review" role="status">Looking up the latest simpli-review release…</p>
+        <p class="blocked" id="blocked-review" role="status" hidden></p>
+
+        <article class="file" id="file-review-workflow">
+          <header>
+            <h2><code class="path">.github/workflows/code-review.yml</code></h2>
+            <div class="actions">
+              <button type="button" class="btn" data-copy="review-workflow">Copy</button>
+              <button type="button" class="btn" data-download="review-workflow">Download</button>
+            </div>
+          </header>
+          <pre tabindex="0" aria-label="code-review.yml"><code></code></pre>
+          <p class="copied" role="status"></p>
+        </article>
+
+        <article class="file" id="file-review-scan" hidden>
+          <header>
+            <h2><code class="path">.github/workflows/ai-scan.yml</code></h2>
+            <div class="actions">
+              <button type="button" class="btn" data-copy="review-scan">Copy</button>
+              <button type="button" class="btn" data-download="review-scan">Download</button>
+            </div>
+          </header>
+          <pre tabindex="0" aria-label="ai-scan.yml"><code></code></pre>
+          <p class="copied" role="status"></p>
+        </article>
+
+        <article class="file" id="file-review-config">
+          <header>
+            <h2><code class="path">.simpli-review/config.json</code></h2>
+            <div class="actions">
+              <button type="button" class="btn" data-copy="review-config">Copy</button>
+              <button type="button" class="btn" data-download="review-config">Download</button>
+            </div>
+          </header>
+          <p class="note" data-empty-note hidden>Every setting is at its default, so this file is optional.</p>
+          <pre tabindex="0" aria-label="config.json"><code></code></pre>
+          <p class="copied" role="status"></p>
+        </article>
+
+        <section class="then" aria-labelledby="then-review">
+          <h2 id="then-review">Then</h2>
+          <ol>
+            <li>Add a repository secret named <code>ANTHROPIC_API_KEY</code>. <a href="https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-a-repository" rel="noopener noreferrer">How to create a repository secret</a>.</li>
+            <li>Commit the files above at the paths shown.</li>
+            <li>Create a label named <code data-label-name="review">re-review</code> in the repository (any colour). The <code>ai-scan</code> label is created for you on the first scan that opens an issue.</li>
+            <li>Open a pull request. Add the re-review label whenever you want another review.</li>
+          </ol>
+          <p class="cli">Prefer the terminal? In your repository run <code>pipx install git+https://github.com/simpli-software/simpli-review</code> then <code>simpli-review init</code>. It asks the same questions and writes these files.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== GUARD ===================== -->
+  <section id="panel-guard" class="panel" role="tabpanel" aria-labelledby="tab-guard" hidden>
+    <p class="panel-intro"><strong>simpli-guard</strong> scans every pull request for security problems it introduces, and your repository and live sites every night. The scanners are free open-source tools; the optional Claude triage step uses your API key.</p>
+
+    <div class="layout">
+      <form id="form-guard" class="form" novalidate autocomplete="off">
+
+        <details class="group" open>
+          <summary>Guard basics</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="g-heading">Heading</label>
+              <input id="g-heading" name="heading" type="text" value="Security scan" maxlength="80" spellcheck="false" data-path="heading">
+              <p class="hint">The title on comments, issues and reports. Goes in the config.</p>
+              <p class="err" hidden></p>
+            </div>
+            <div class="field">
+              <label for="g-failon">Fail a pull request on new findings at or above</label>
+              <select id="g-failon" name="failOn">
+                <option>critical</option><option selected>high</option><option>medium</option><option>low</option><option>info</option>
+              </select>
+              <p class="hint">Only findings the PR introduces can fail it. Existing findings are reported, never blocking.</p>
+            </div>
+            <fieldset class="field">
+              <legend>Scan categories</legend>
+              <div class="checks cols">
+                <label class="check"><input type="checkbox" name="cat" value="sast" checked> Code (SAST)</label>
+                <label class="check"><input type="checkbox" name="cat" value="dependency" checked> Dependencies</label>
+                <label class="check"><input type="checkbox" name="cat" value="secret" checked> Secrets</label>
+                <label class="check"><input type="checkbox" name="cat" value="iac" checked> IaC and config</label>
+                <label class="check"><input type="checkbox" name="cat" value="actions" checked> GitHub Actions workflows</label>
+                <label class="check"><input type="checkbox" name="cat" value="container" checked> Container images (nightly)</label>
+                <label class="check"><input type="checkbox" name="cat" value="license" checked> Licenses (nightly)</label>
+                <label class="check"><input type="checkbox" name="cat" value="surface" checked> Live surface (nightly)</label>
+              </div>
+            </fieldset>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Live surface checks</summary>
+          <div class="group-body">
+            <div class="field">
+              <label for="g-urls">URLs to check</label>
+              <textarea id="g-urls" name="surfaceUrls" rows="3" spellcheck="false" placeholder="https://app.example.com" data-path="surfaceUrls"></textarea>
+              <p class="hint">One <code>https://</code> URL per line. Checks TLS, headers, cookies and exposed files with read-only requests. Only list sites you own.</p>
+              <p class="err" hidden></p>
+            </div>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Claude triage</summary>
+          <div class="group-body">
+            <div class="checks">
+              <label class="check"><input type="checkbox" name="triageEnabled" checked> Triage high and critical findings with Claude</label>
+            </div>
+            <p class="hint">Runs only when the <code>ANTHROPIC_API_KEY</code> secret is set. A run typically costs a few cents.</p>
+            <fieldset class="scan-fields" id="triage-fields">
+              <legend class="sr-only">Triage settings</legend>
+              <div class="field">
+                <label for="g-model">Model</label>
+                <input id="g-model" name="triageModel" type="text" value="claude-sonnet-5-5" spellcheck="false" data-path="triage.model">
+                <p class="err" hidden></p>
+              </div>
+              <div class="pair">
+                <div class="field">
+                  <label for="g-effort">Effort</label>
+                  <select id="g-effort" name="triageEffort"><option>low</option><option selected>medium</option><option>high</option><option>xhigh</option><option>max</option></select>
+                </div>
+                <div class="field">
+                  <label for="g-maxf">Most findings (0-100)</label>
+                  <input id="g-maxf" name="triageMaxFindings" type="number" inputmode="numeric" min="0" max="100" step="1" value="60" data-path="triage.maxFindings">
+                  <p class="err" hidden></p>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+        </details>
+
+        <details class="group">
+          <summary>Ignored findings</summary>
+          <div class="group-body">
+            <p class="hint">Fix a finding if you can. Otherwise ignore it here, always with a reason. An expired entry stops applying and the finding comes back.</p>
+            <ol class="rows" data-rows="ignore"></ol>
+            <button type="button" class="btn" data-add="ignore">Add an ignore entry</button>
+            <div class="field spaced">
+              <label for="g-tests">Extra test paths</label>
+              <textarea id="g-tests" name="testPaths" rows="2" spellcheck="false" placeholder="qa/**" data-path="testPaths"></textarea>
+              <p class="hint">One glob per line. Findings in test code are down-weighted. Common test folders and file names are already recognised.</p>
+              <p class="err" hidden></p>
+            </div>
+          </div>
+        </details>
+      </form>
+
+      <div class="out">
+        <p class="pin-note" id="pin-guard" role="status">Looking up the latest simpli-guard release…</p>
+        <p class="blocked" id="blocked-guard" role="status" hidden></p>
+
+        <article class="file" id="file-guard-workflow">
+          <header>
+            <h2><code class="path">.github/workflows/security-scan.yml</code></h2>
+            <div class="actions">
+              <button type="button" class="btn" data-copy="guard-workflow">Copy</button>
+              <button type="button" class="btn" data-download="guard-workflow">Download</button>
+            </div>
+          </header>
+          <pre tabindex="0" aria-label="security-scan.yml"><code></code></pre>
+          <p class="copied" role="status"></p>
+        </article>
+
+        <article class="file" id="file-guard-config">
+          <header>
+            <h2><code class="path">.simpli-guard/config.json</code></h2>
+            <div class="actions">
+              <button type="button" class="btn" data-copy="guard-config">Copy</button>
+              <button type="button" class="btn" data-download="guard-config">Download</button>
+            </div>
+          </header>
+          <p class="note" data-empty-note hidden>Every setting is at its default, so this file is optional.</p>
+          <pre tabindex="0" aria-label="config.json"><code></code></pre>
+          <p class="copied" role="status"></p>
+        </article>
+
+        <section class="then" aria-labelledby="then-guard">
+          <h2 id="then-guard">Then</h2>
+          <ol>
+            <li>Optional: add a repository secret named <code>ANTHROPIC_API_KEY</code> to turn on Claude triage. Scanning works without it. <a href="https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions#creating-secrets-for-a-repository" rel="noopener noreferrer">How to create a repository secret</a>.</li>
+            <li>Commit the files above at the paths shown.</li>
+            <li>Open a pull request. The scan also runs nightly and from <strong>Actions &gt; Security scan &gt; Run workflow</strong>.</li>
+          </ol>
+          <p class="cli">Prefer the terminal? In your repository run <code>pipx install git+https://github.com/simpli-software/simpli-guard</code> then <code>simpli-guard init</code>. It asks the same questions and writes these files.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- Row templates -->
+  <template id="tpl-checks">
+    <li class="row" data-row="checks">
+      <div class="field">
+        <label>Name <input type="text" data-sub="name" maxlength="60" spellcheck="false" placeholder="tests-added"></label>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>What to check <textarea data-sub="instructions" rows="2" placeholder="Every new branch in backend code has a test."></textarea></label>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>If it fails
+          <select data-sub="mode"><option value="off">off</option><option value="warning" selected>warning</option><option value="error">error (blocks merge)</option></select>
+        </label>
+      </div>
+      <button type="button" class="btn btn-remove" data-remove>Remove check</button>
+    </li>
+  </template>
+
+  <template id="tpl-rules">
+    <li class="row" data-row="rules">
+      <div class="field">
+        <label>Rule id <input type="text" data-sub="id" maxlength="60" spellcheck="false" placeholder="repository-layer"></label>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>Rule <textarea data-sub="rule" rows="2" placeholder="Database access goes through the repository layer, never from route handlers."></textarea></label>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>Applies to files <textarea data-sub="scope" rows="2" spellcheck="false" placeholder="backend/**/*.py"></textarea></label>
+        <p class="hint">One glob per line. Leave empty for the whole repository.</p>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>Severity
+          <select data-sub="severity"><option value="low">low</option><option value="medium" selected>medium</option><option value="high">high</option></select>
+        </label>
+      </div>
+      <button type="button" class="btn btn-remove" data-remove>Remove rule</button>
+    </li>
+  </template>
+
+  <template id="tpl-ignore">
+    <li class="row" data-row="ignore">
+      <div class="pair">
+        <div class="field">
+          <label>Ignore by
+            <select data-sub="kind"><option value="rule">rule id</option><option value="path">path glob</option><option value="id">finding id</option></select>
+          </label>
+        </div>
+        <div class="field">
+          <label>Value <input type="text" data-sub="value" spellcheck="false" placeholder="scripts/**"></label>
+          <p class="err" hidden></p>
+        </div>
+      </div>
+      <div class="field">
+        <label>Reason (required) <input type="text" data-sub="reason" spellcheck="false" placeholder="local dev scripts, never deployed"></label>
+        <p class="err" hidden></p>
+      </div>
+      <div class="field">
+        <label>Expires (optional) <input type="date" data-sub="expires"></label>
+        <p class="hint">After this date the entry stops applying.</p>
+        <p class="err" hidden></p>
+      </div>
+      <button type="button" class="btn btn-remove" data-remove>Remove entry</button>
+    </li>
+  </template>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>Built by Simpli Software &middot; MIT</p>
+    <ul>
+      <li><a href="https://github.com/simpli-software/simpli-review" rel="noopener noreferrer">simpli-review</a> (<a href="https://github.com/marketplace/actions/simpli-gatehouse-review" rel="noopener noreferrer">Marketplace</a>)</li>
+      <li><a href="https://github.com/simpli-software/simpli-guard" rel="noopener noreferrer">simpli-guard</a> (<a href="https://github.com/marketplace/actions/simpli-gatehouse-guard" rel="noopener noreferrer">Marketplace</a>)</li>
+    </ul>
+  </div>
+</footer>
+</body>
+</html>
